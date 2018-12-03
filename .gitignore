@@ -12,3 +12,8 @@ corpus/*.cdxb
 
 # Go build artifacts (supervisor)
 /cmd/cinderd/cinderd
+/cinderd
+
+# Editor and OS junk
+.vscode/
+.idea/
