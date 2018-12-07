@@ -75,3 +75,80 @@ fn check_function(
         }
         if matches!(insn.operand, Operand::JumpTable) && (d.b as usize) >= jump_tables.len() {
             return Err(Diag::new(Code::DanglingIndex, "jump table out of range").at_pc(pc));
+        }
+
+        if insn.variadic {
+            depth = 0;
+            stack_types.clear();
+        } else {
+            for want in insn.pops {
+                match stack_types.last() {
+                    Some(got) if got.satisfies(*want) => {
+                        stack_types.pop();
+                        depth -= 1;
+                    }
+                    Some(got) => {
+                        return Err(Diag::new(
+                            Code::TypeMismatch,
+                            format!("expected {}, found {}", want.name(), got.name()),
+                        )
+                        .at_pc(pc));
+                    }
+                    None => {
+                        return Err(Diag::new(
+                            Code::StackUnderflow,
+                            format!("{} underflows", d.op.mnemonic()),
+                        )
+                        .at_pc(pc));
+                    }
+                }
+            }
+            for push in insn.pushes {
+                stack_types.push(*push);
+                depth += 1;
+                if depth > i32::from(f.maxstack) {
+                    return Err(Diag::new(
+                        Code::MaxstackExceeded,
+                        format!("`{}` exceeds maxstack", f.name),
+                    )
+                    .at_pc(pc));
+                }
+            }
+        }
+
+        if matches!(d.op, Op::Ret | Op::Tail) && stack_types.contains(&Ty::Pending) {
+            return Err(Diag::new(Code::PendingEscape, "pending value live at return").at_pc(pc));
+        }
+        if matches!(d.op, Op::Checkpoint | Op::Fork | Op::Commit)
+            && stack_types.contains(&Ty::Pending)
+        {
+            return Err(
+                Diag::new(Code::LivePending, "pending value live at snapshot boundary").at_pc(pc),
+            );
+        }
+    }
+
+    if !insns
+        .iter()
+        .any(|d| matches!(d.op, Op::Ret | Op::Tail | Op::Halt | Op::Trap))
+    {
+        return Err(Diag::new(Code::BadTarget, format!("`{}` has no exit", f.name)).at_pc(0));
+    }
+
+    let metering: [Op; 4] = [Op::Reserve, Op::Spend, Op::Release, Op::QueryQ];
+    for (a, b) in g.back_edges() {
+        let window: Vec<Op> = insns[*a as usize..=*b as usize]
+            .iter()
+            .map(|d| d.op)
+            .collect();
+        if !window.iter().any(|op| metering.contains(op)) {
+            return Err(
+                Diag::new(Code::UnmeteredLoop, "loop has no metering instruction").at_pc(*a),
+            );
+        }
+    }
+
+    let balance = insns.iter().fold(0i32, |acc, d| {
+        acc + match d.op {
+            Op::Fork => 1,
+            Op::Commit | Op::Abort => -1,
