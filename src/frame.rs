@@ -93,3 +93,35 @@ impl Frame {
     }
 
     /// Drop the top `n` operands.
+    pub fn drop_n(&mut self, n: usize) -> Result<()> {
+        if n > self.sp {
+            return Err(Diag::new(
+                Code::StackUnderflow,
+                "cannot drop below the stack base",
+            ));
+        }
+        self.sp -= n;
+        Ok(())
+    }
+
+    /// Pop `n` operands, first-pushed first.
+    pub fn pop_n(&mut self, n: usize) -> Result<Vec<Value>> {
+        if n > self.sp {
+            return Err(Diag::new(
+                Code::StackUnderflow,
+                "cannot pop below the stack base",
+            ));
+        }
+        let out = self.slots[self.sp - n..self.sp].to_vec();
+        self.sp -= n;
+        Ok(out)
+    }
+
+    /// Verify a static type assertion at the top of the stack.
+    pub fn check_top(&self, want: Ty) -> Result<()> {
+        let v = self.peek(0)?;
+        if v.ty().satisfies(want) {
+            Ok(())
+        } else {
+            Err(Diag::new(
+                Code::TagMismatch,
