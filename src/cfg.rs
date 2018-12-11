@@ -208,3 +208,108 @@ impl Cfg {
     }
 
     /// Immediate dominator of `b`. `None` for the entry block, for an
+    /// unreachable block, and for an out-of-range id.
+    #[must_use]
+    pub fn idom(&self, b: u32) -> Option<u32> {
+        match self.idoms.get(b as usize).copied() {
+            Some(d) if d != UNDEF && d != b => Some(d),
+            _ => None,
+        }
+    }
+
+    /// Whether `a` dominates `b`: whether every path from the entry to `b`
+    /// passes through `a`. Walks `b`'s idom chain, which is O(depth).
+    #[must_use]
+    pub fn dominates(&self, a: u32, b: u32) -> bool {
+        if a as usize >= self.blocks.len() || b as usize >= self.blocks.len() {
+            return false;
+        }
+        if self.rpo_num[a as usize] == UNDEF || self.rpo_num[b as usize] == UNDEF {
+            return false; // domination is meaningless off the reachable subgraph
+        }
+        let mut cur = b;
+        loop {
+            if cur == a {
+                return true;
+            }
+            match self.idom(cur) {
+                Some(next) => cur = next,
+                None => return false,
+            }
+        }
+    }
+
+    /// Back edges as `(tail, header)`, where the header *dominates* the tail.
+    ///
+    /// Dominance is the whole point. "Successor index is below source index" is
+    /// the cheap approximation, and it is wrong in both directions: it flags the
+    /// re-entry edge of an irreducible graph, where the target is merely earlier
+    /// and not a loop header, and it misses nothing only by accident of layout.
+    /// `verify.rs` turns each pair here into the claim "this cycle must contain
+    /// a metering instruction dominated by the header" (`E_UNMETERED_LOOP`), so
+    /// a false positive rejects a valid image and a false negative admits an
+    /// unmeterable loop. Only dominance identifies a real natural loop.
+    #[must_use]
+    pub fn back_edges(&self) -> &[(u32, u32)] {
+        &self.back_edges
+    }
+
+    /// The cached decoded instruction at `idx`.
+    ///
+    /// Panics if `idx >= insn_count()`. That is deliberate: `build` decoded the
+    /// entire range and every public index-producing method is bounded by it, so
+    /// an out-of-range index is a bug in the caller, not bad input, and a
+    /// `Result` here would only push the `unwrap` outwards.
+    #[must_use]
+    pub fn insn_at(&self, idx: u32) -> Decoded {
+        self.insns[idx as usize]
+    }
+
+    /// Number of instructions in the function.
+    #[must_use]
+    pub fn insn_count(&self) -> u32 {
+        self.insns.len() as u32
+    }
+
+    /// The decoded instruction stream, function-local order.
+    #[must_use]
+    pub fn decoded(&self) -> &[Decoded] {
+        &self.insns
+    }
+
+    /// Absolute byte offset of instruction `idx` in the image code section.
+    /// Panics on an out-of-range index, for the reason given on
+    /// [`Cfg::insn_at`].
+    #[must_use]
+    pub fn byte_offset(&self, idx: u32) -> u32 {
+        self.offsets[idx as usize]
+    }
+
+    /// Inverse of [`Cfg::byte_offset`]: the instruction index that begins at
+    /// absolute offset `off`, or `None` if `off` is outside the function or
+    /// interior to an instruction. `O(log n)` — the offset table is ascending.
+    #[must_use]
+    pub fn index_at_byte(&self, off: u32) -> Option<u32> {
+        self.offsets.binary_search(&off).ok().map(|i| i as u32)
+    }
+
+    /// Block ids not reachable from the entry, ascending. Non-empty means the
+    /// function carries dead code, which `verify.rs` rejects with
+    /// `E_UNREACHABLE`; the CFG itself merely reports it.
+    #[must_use]
+    pub fn unreachable(&self) -> Vec<u32> {
+        self.rpo_num
+            .iter()
+            .enumerate()
+            .filter(|(_, &pos)| pos == UNDEF)
+            .map(|(id, _)| id as u32)
+            .collect()
+    }
+
+    fn find_back_edges(&self) -> Vec<(u32, u32)> {
+        let mut out = Vec::new();
+        for (id, b) in self.blocks.iter().enumerate() {
+            let tail = id as u32;
+            if self.rpo_num[id] == UNDEF {
+                continue;
+            }
