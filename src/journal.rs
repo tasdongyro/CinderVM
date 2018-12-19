@@ -67,3 +67,38 @@ impl Journal {
     /// Look up the answer recorded for a kind at a sequence number.
     pub fn answer(&self, seq: u64) -> Option<&Record> {
         self.records.get(seq as usize)
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.records.len()
+    }
+
+    /// Serialize.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(JOURNAL_MAGIC);
+        out.extend_from_slice(&self.head.to_le_bytes());
+        out.extend_from_slice(&(self.records.len() as u32).to_le_bytes());
+        for r in &self.records {
+            out.push(r.kind);
+            out.extend_from_slice(&r.seq.to_le_bytes());
+            out.extend_from_slice(&r.prev.to_le_bytes());
+            out.extend_from_slice(&(r.payload.len() as u32).to_le_bytes());
+            out.extend_from_slice(&r.payload);
+        }
+        out
+    }
+
+    /// Deserialize and chain-verify.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        let mut c = Cursor::new(bytes);
+        if c.take(4)? != JOURNAL_MAGIC {
+            return Err(Diag::new(Code::RecordMalformed, "bad journal magic"));
+        }
+        let head = u64::from_le_bytes(c.take(8)?.try_into().expect("8 bytes"));
+        let n = u32::from_le_bytes(c.take(4)?.try_into().expect("4 bytes")) as usize;
+        let mut records = Vec::with_capacity(n);
+        for _ in 0..n {
+            let kind = c.take(1)?[0];
+            let seq = u64::from_le_bytes(c.take(8)?.try_into().expect("8 bytes"));
