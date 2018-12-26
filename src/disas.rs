@@ -28,3 +28,33 @@ pub fn emit(image: &Image) -> String {
     if !image.tools().is_empty() {
         out.push_str("\n.tools:");
         for t in image.tools() {
+            out.push_str(&format!(" {t}"));
+        }
+        out.push('\n');
+    }
+    out
+}
+
+fn render(image: &Image, d: &isa::Decoded) -> String {
+    let insn = d.op.insn();
+    let opname = d.op.mnemonic();
+    let operand = match insn.operand {
+        Operand::None => String::new(),
+        Operand::Const => format!(
+            " [{}]",
+            image
+                .constants()
+                .get(d.b as usize)
+                .map(|c| String::from_utf8_lossy(c).into_owned())
+                .unwrap_or_default()
+        ),
+        Operand::Imm => format!(" {}", isa::imm(*d)),
+        Operand::Target => format!(" {}", d.b),
+        Operand::Func => {
+            let name = image
+                .funcs()
+                .get(d.b as usize)
+                .map(|f| f.name.clone())
+                .unwrap_or_default();
+            format!(" {name}")
+        }

@@ -118,3 +118,124 @@ impl Vm {
                         .image
                         .constants()
                         .get(d.b as usize)
+                        .cloned()
+                        .unwrap_or_default();
+                    let h = self.arena.alloc(&bytes)?;
+                    let v = if std::str::from_utf8(&bytes).is_ok() {
+                        Value::str(h)
+                    } else {
+                        Value::bytes(h)
+                    };
+                    frame.push(v)?;
+                }
+                Op::Ldi => frame.push(Value::int(isa::imm(d)))?,
+                Op::Dup => {
+                    let v = frame.peek(0)?;
+                    frame.push(v)?;
+                }
+                Op::DupN => {
+                    let v = frame.peek(d.b as usize)?;
+                    frame.push(v)?;
+                }
+                Op::Drop => {
+                    frame.pop()?;
+                }
+                Op::Swap => {
+                    let a = frame.pop()?;
+                    let b = frame.pop()?;
+                    frame.push(a)?;
+                    frame.push(b)?;
+                }
+                Op::Rot => {
+                    let a = frame.pop()?;
+                    let b = frame.pop()?;
+                    let c = frame.pop()?;
+                    frame.push(a)?;
+                    frame.push(c)?;
+                    frame.push(b)?;
+                }
+                Op::Ldl => {
+                    let v = frame.load_local(d.b as usize)?;
+                    frame.push(v)?;
+                }
+                Op::Stl => {
+                    let v = frame.pop()?;
+                    frame.store_local(d.b as usize, v)?;
+                }
+                Op::Argv => {
+                    let h = self.arena.alloc(&[0u8])?;
+                    frame.push(Value::str(h))?;
+                }
+                Op::Pack => {
+                    let items = frame.pop_n(d.b as usize)?;
+                    let h = self.arena.alloc_list(&items)?;
+                    frame.push(Value::list(h))?;
+                }
+                Op::Unpack => {
+                    let list = frame.pop()?;
+                    let h = list.as_handle_of(Tag::List)?;
+                    for v in self.arena.get_list(h)? {
+                        frame.push(v)?;
+                    }
+                }
+                Op::Idx => {
+                    let list = frame.pop()?;
+                    let idx = frame.pop()?.as_int()?;
+                    let h = list.as_handle_of(Tag::List)?;
+                    let items = self.arena.get_list(h)?;
+                    if idx < 0 || idx as usize >= items.len() {
+                        return Err(Diag::new(Code::IndexRange, "index out of range"));
+                    }
+                    frame.push(items[idx as usize])?;
+                }
+                Op::Len => {
+                    let v = frame.pop()?;
+                    let h = v.as_handle()?;
+                    let len = self.arena.get(h)?.len() as i64;
+                    frame.push(Value::int(len))?;
+                }
+                Op::Cat => {
+                    let b = frame.pop()?;
+                    let a = frame.pop()?;
+                    let ha = a.as_handle_of(Tag::Str)?;
+                    let hb = b.as_handle_of(Tag::Str)?;
+                    let mut buf = self.arena.get(ha)?.to_vec();
+                    buf.extend_from_slice(self.arena.get(hb)?);
+                    let h = self.arena.alloc(&buf)?;
+                    frame.push(Value::str(h))?;
+                }
+                Op::Fmt => {
+                    let list = frame.pop()?;
+                    let h = list.as_handle_of(Tag::List)?;
+                    let items = self.arena.get_list(h)?;
+                    let template = String::from_utf8_lossy(
+                        self.image
+                            .constants()
+                            .get(d.b as usize)
+                            .map(Vec::as_slice)
+                            .unwrap_or_default(),
+                    );
+                    let mut out = String::new();
+                    let mut next = 0usize;
+                    let mut last = false;
+                    for part in template.split("{}") {
+                        out.push_str(part);
+                        if next < items.len() && !last {
+                            out.push_str(&format_short(items[next], &self.arena));
+                            next += 1;
+                        }
+                        last = next >= items.len();
+                    }
+                    let h = self.arena.alloc(out.as_bytes())?;
+                    frame.push(Value::str(h))?;
+                }
+                Op::Slice => {
+                    let v = frame.pop()?;
+                    let hi = frame.pop()?.as_int()?;
+                    let lo = frame.pop()?.as_int()?;
+                    let h = v.as_handle()?;
+                    let raw = self.arena.get(h)?.to_vec();
+                    let lo = lo.clamp(0, raw.len() as i64) as usize;
+                    let hi = hi.clamp(0, raw.len() as i64) as usize;
+                    let h = self.arena.alloc(&raw[lo.min(hi)..hi.max(lo)])?;
+                    frame.push(Value::bytes(h))?;
