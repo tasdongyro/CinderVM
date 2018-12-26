@@ -55,3 +55,32 @@ pub fn restore(vm: &mut Vm, bytes: &[u8]) -> Result<()> {
 
     let n_frames = u32::from_le_bytes(c.take(4)?.try_into().expect("4 bytes")) as usize;
     let mut frames = Vec::with_capacity(n_frames);
+    for _ in 0..n_frames {
+        let func = u32::from_le_bytes(c.take(4)?.try_into().expect("4 bytes"));
+        let pc = u32::from_le_bytes(c.take(4)?.try_into().expect("4 bytes"));
+        let n_slots = u32::from_le_bytes(c.take(4)?.try_into().expect("4 bytes")) as usize;
+        let mut slots = Vec::with_capacity(n_slots);
+        for _ in 0..n_slots {
+            let v = Value::read(c.take(16)?)?;
+            if v.tag() == Tag::Pending {
+                return Err(Diag::new(
+                    Code::LivePending,
+                    "pending value in restored snapshot",
+                ));
+            }
+            if v.tag().is_arena() {
+                let h = v.as_handle()?;
+                if h.end() as usize > arena_len {
+                    return Err(Diag::new(Code::BadHandle, "handle outside snapshot arena"));
+                }
+            }
+            slots.push(v);
+        }
+        let sp = u32::from_le_bytes(c.take(4)?.try_into().expect("4 bytes")) as usize;
+        let maxstack = u16::from_le_bytes(c.take(2)?.try_into().expect("2 bytes"));
+        let returns = c.take(1)?[0];
+        if sp > slots.len() {
+            return Err(Diag::new(
+                Code::SnapshotCorrupt,
+                "stack pointer exceeds slots",
+            ));
