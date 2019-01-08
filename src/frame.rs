@@ -29,3 +29,35 @@ impl Frame {
         let mut slots = vec![Value::VOID; maxstack as usize + locals];
         let mut sp = 0usize;
         for v in args {
+            if sp < maxstack as usize {
+                slots[sp] = v;
+                sp += 1;
+            }
+        }
+        Self {
+            func,
+            pc: 0,
+            sp,
+            slots,
+            maxstack,
+            returns,
+        }
+    }
+
+    #[must_use]
+    pub fn depth(&self) -> usize {
+        self.sp
+    }
+
+    pub fn push(&mut self, v: Value) -> Result<()> {
+        if self.sp >= usize::from(self.maxstack) {
+            return Err(Diag::new(Code::MaxstackExceeded, "operand stack overflow"));
+        }
+        self.slots[self.sp] = v;
+        self.sp += 1;
+        Ok(())
+    }
+
+    pub fn pop(&mut self) -> Result<Value> {
+        if self.sp == 0 {
+            return Err(Diag::new(Code::StackUnderflow, "operand stack underflow"));
