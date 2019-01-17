@@ -166,3 +166,59 @@ pub fn lex(source: &str) -> Result<Vec<Token>> {
                 if i < bytes.len() && bytes[i] == b':' {
                     out.push(Token {
                         tok: Tok::Label(name),
+                        span: Span::new(start as u32, i as u32 + 1, line, col),
+                    });
+                    i += 1;
+                    col += 1;
+                } else {
+                    out.push(Token {
+                        tok: Tok::Ident(name),
+                        span: Span::new(start as u32, i as u32, line, col),
+                    });
+                }
+            }
+            _ => {
+                return Err(
+                    Diag::new(Code::StrayChar, format!("unexpected byte 0x{b:02X}")).at(Span::new(
+                        i as u32,
+                        i as u32 + 1,
+                        line,
+                        col,
+                    )),
+                );
+            }
+        }
+    }
+    out.push(Token {
+        tok: Tok::End,
+        span: Span::new(bytes.len() as u32, bytes.len() as u32, line, col),
+    });
+    Ok(out)
+}
+
+fn lex_string(bytes: &[u8], start: usize, line: u32, col: u32) -> Result<(String, usize, u32)> {
+    let mut i = start + 1;
+    let mut c = col + 1;
+    let mut s = String::new();
+    while i < bytes.len() {
+        match bytes[i] {
+            b'"' => return Ok((s, i + 1, c + 1)),
+            b'\n' => {
+                return Err(
+                    Diag::new(Code::UnterminatedString, "string runs past end of line")
+                        .at(Span::new(start as u32, i as u32, line, col)),
+                );
+            }
+            b'\\' => {
+                i += 1;
+                c += 1;
+                if i >= bytes.len() {
+                    break;
+                }
+                let esc = match bytes[i] {
+                    b'n' => '\n',
+                    b't' => '\t',
+                    b'r' => '\r',
+                    b'\\' => '\\',
+                    b'"' => '"',
+                    b'0' => '\0',
