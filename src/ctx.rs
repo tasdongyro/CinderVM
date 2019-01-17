@@ -27,32 +27,3 @@ impl ContextRing {
         seg.push(role);
         seg.extend_from_slice(bytes);
         if self.segments.len() >= self.limit {
-            return Err(Diag::new(
-                Code::ArenaExhausted,
-                "context ring full; evict first",
-            ));
-        }
-        self.segments.push_back(seg);
-        Ok(())
-    }
-
-    /// Drop the `b` oldest segments.
-    pub fn pop_oldest(&mut self, n: usize) -> Result<()> {
-        if n > self.segments.len() {
-            return Err(Diag::new(Code::IndexRange, "eviction exceeds ring size"));
-        }
-        for _ in 0..n {
-            self.segments.pop_front();
-        }
-        Ok(())
-    }
-
-    /// Materialize the current window as a list of segment values.
-    #[must_use]
-    pub fn window(&self) -> Vec<Value> {
-        self.segments
-            .iter()
-            .map(|s| Value::int(s[0] as i64))
-            .collect()
-    }
-

@@ -19,14 +19,3 @@ pub fn chain(prev: u64, data: &[u8]) -> u64 {
     let mut buf = Vec::with_capacity(8 + data.len());
     buf.extend_from_slice(&prev.to_le_bytes());
     buf.extend_from_slice(data);
-    hash_bytes(&buf)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn fnv_is_deterministic_and_sensitive() {
-        assert_eq!(hash_bytes(b"cindervm"), hash_bytes(b"cindervm"));
-        assert_ne!(hash_bytes(b"cindervm"), hash_bytes(b"cindervn"));
