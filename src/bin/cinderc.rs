@@ -61,35 +61,3 @@ fn main() -> ExitCode {
         }
         "dis" => {
             let file = args.get(1).map(String::as_str).unwrap_or("out.cdxb");
-            match disassemble(file) {
-                Ok(text) => {
-                    print!("{text}");
-                    ExitCode::SUCCESS
-                }
-                Err(e) => {
-                    eprintln!("{e}");
-                    ExitCode::FAILURE
-                }
-            }
-        }
-        other => {
-            eprintln!("cinderc: unknown command `{other}`\n\n{}", usage());
-            ExitCode::FAILURE
-        }
-    }
-}
-
-fn run_build(src: &str, out: &str) -> Result<(), Diag> {
-    let source = std::fs::read_to_string(src)
-        .map_err(|e| Diag::new(cindervm::Code::BadNumber, format!("cannot read {src}: {e}")))?;
-    let object = asm::assemble(src, &source)?;
-    let image = verify::admit(object)?;
-    std::fs::write(out, image.to_bytes()).map_err(|e| {
-        Diag::new(
-            cindervm::Code::BadNumber,
-            format!("cannot write {out}: {e}"),
-        )
-    })?;
-    println!(
-        "wrote {out} ({} bytes, checksum {:#x})",
-        image.to_bytes().len(),
