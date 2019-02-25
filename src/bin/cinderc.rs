@@ -29,35 +29,3 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         "--emit-isa-md" => {
-            print!("{}", isa::emit_markdown());
-            ExitCode::SUCCESS
-        }
-        "build" => {
-            let src = args.get(1).map(String::as_str).unwrap_or("in.cdx");
-            let out = args
-                .iter()
-                .position(|a| a == "-o")
-                .and_then(|i| args.get(i + 1))
-                .cloned()
-                .unwrap_or_else(|| src.replace(".cdx", ".cdxb"));
-            match run_build(src, &out) {
-                Ok(()) => ExitCode::SUCCESS,
-                Err(e) => {
-                    eprintln!("{e}");
-                    ExitCode::FAILURE
-                }
-            }
-        }
-        "run" => {
-            let file = args.get(1).map(String::as_str).unwrap_or("out.cdxb");
-            let trace = args.contains(&"--trace".to_string());
-            match run_image(file, trace) {
-                Ok(code) => ExitCode::from(code.min(255) as u8),
-                Err(e) => {
-                    eprintln!("{e}");
-                    ExitCode::FAILURE
-                }
-            }
-        }
-        "dis" => {
-            let file = args.get(1).map(String::as_str).unwrap_or("out.cdxb");
