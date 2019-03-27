@@ -13,35 +13,3 @@
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M0 0 L10 5 L0 10 z" fill="#c3ccd8"/>
     </marker>
-  </defs>
-
-  <rect width="860" height="300" rx="10" fill="#12161c"/>
-  <rect x="0.5" y="0.5" width="859" height="299" rx="10" fill="none" stroke="#30363d"/>
-  <text class="lbl" x="24" y="34">build path: assemble, verify, seal, run</text>
-
-  <!-- source -->
-  <rect class="box" x="24" y="96" width="120" height="70" rx="6"/>
-  <text class="lbl" x="84" y="128" text-anchor="middle">triage.cdx</text>
-  <text class="sub" x="84" y="148" text-anchor="middle">macro assembler</text>
-
-  <!-- assemble -->
-  <rect class="box" x="196" y="96" width="120" height="70" rx="6"/>
-  <text class="lbl" x="256" y="122" text-anchor="middle">assemble</text>
-  <text class="sub" x="256" y="140" text-anchor="middle">lex, parse,</text>
-  <text class="sub" x="256" y="154" text-anchor="middle">resolve, encode</text>
-
-  <!-- verify gate -->
-  <rect class="gate" x="368" y="96" width="120" height="70" rx="6"/>
-  <text class="lbl" x="428" y="122" text-anchor="middle" fill="#ffc061">verify::admit</text>
-  <text class="sub" x="428" y="140" text-anchor="middle">CFG fixpoint,</text>
-  <text class="sub" x="428" y="154" text-anchor="middle">types, stack, pending</text>
-
-  <!-- image -->
-  <rect class="box" x="540" y="96" width="120" height="70" rx="6"/>
-  <text class="lbl" x="600" y="128" text-anchor="middle">triage.cdxb</text>
-  <text class="sub" x="600" y="148" text-anchor="middle">sealed, checksummed</text>
-
-  <!-- run -->
-  <rect class="box" x="712" y="96" width="124" height="70" rx="6"/>
-  <text class="lbl" x="774" y="122" text-anchor="middle">interp step loop</text>
-  <text class="sub" x="774" y="140" text-anchor="middle">trap, answer,</text>
