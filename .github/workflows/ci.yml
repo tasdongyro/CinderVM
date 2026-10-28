@@ -26,3 +26,6 @@ jobs:
           ./target/release/cinderc build examples/echo.cdx -o /tmp/echo.cdxb
           ./target/release/cinderc run /tmp/echo.cdxb
           ./target/release/cinderc dis /tmp/echo.cdxb > /dev/null
+
+permissions:
+  contents: read
